@@ -9,6 +9,7 @@ import json
 import datetime
 import csv
 import os
+import time
 from typing import Dict, Optional, Tuple
 import argparse
 from dotenv import load_dotenv
@@ -26,6 +27,11 @@ class SolTokenPriceTracker:
         # 从.env文件获取默认代币地址
         self.default_token_address = os.getenv('DEFAULT_TOKEN_ADDRESS')
         
+        # 简单缓存机制（内存缓存，程序重启后失效）
+        self._token_info_cache = {}
+        self._cache_expiry = {}
+        self._cache_duration = 300  # 5分钟缓存
+        
         # 初始化CSV文件
         self._init_csv_file()
     
@@ -40,11 +46,54 @@ class SolTokenPriceTracker:
                     '代币/SOL比值', '备注'
                 ])
     
+    def _make_request_with_retry(self, url: str, max_retries: int = 3, delay: float = 1.0) -> Optional[requests.Response]:
+        """带重试机制的HTTP请求"""
+        for attempt in range(max_retries):
+            try:
+                response = requests.get(url, timeout=15)
+                if response.status_code == 429:  # Too Many Requests
+                    if attempt < max_retries - 1:
+                        wait_time = delay * (2 ** attempt)  # 指数退避
+                        print(f"请求频率限制，等待 {wait_time:.1f} 秒后重试...")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        print("达到最大重试次数，请稍后再试")
+                        return None
+                
+                response.raise_for_status()
+                return response
+                
+            except requests.exceptions.RequestException as e:
+                if attempt < max_retries - 1:
+                    wait_time = delay * (2 ** attempt)
+                    print(f"请求失败，{wait_time:.1f} 秒后重试... (错误: {e})")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    print(f"请求最终失败: {e}")
+                    return None
+        
+        return None
+
+    def _is_cache_valid(self, key: str) -> bool:
+        """检查缓存是否有效"""
+        if key not in self._cache_expiry:
+            return False
+        return time.time() < self._cache_expiry[key]
+
+    def _set_cache(self, key: str, value: any):
+        """设置缓存"""
+        self._token_info_cache[key] = value
+        self._cache_expiry[key] = time.time() + self._cache_duration
+
     def get_sol_price(self) -> Optional[float]:
         """获取SOL当前价格(USD)"""
         try:
-            response = requests.get(self.sol_price_url, timeout=10)
-            response.raise_for_status()
+            response = self._make_request_with_retry(self.sol_price_url)
+            if not response:
+                return None
+            
             data = response.json()
             return data['solana']['usd']
         except Exception as e:
@@ -53,11 +102,19 @@ class SolTokenPriceTracker:
     
     def get_token_info_by_address(self, token_address: str) -> Optional[Dict]:
         """通过代币地址获取代币信息"""
+        # 检查缓存
+        cache_key = f"token_info_{token_address.lower()}"
+        if self._is_cache_valid(cache_key):
+            print("使用缓存的代币信息...")
+            return self._token_info_cache[cache_key]
+        
         try:
             # 使用CoinGecko的coins/list接口查找代币
             search_url = f"{self.base_url}/coins/list?include_platform=true"
-            response = requests.get(search_url, timeout=15)
-            response.raise_for_status()
+            response = self._make_request_with_retry(search_url)
+            if not response:
+                return None
+            
             coins = response.json()
             
             # 查找匹配的Solana代币
@@ -65,11 +122,14 @@ class SolTokenPriceTracker:
                 if 'platforms' in coin and coin['platforms']:
                     solana_address = coin['platforms'].get('solana')
                     if solana_address and solana_address.lower() == token_address.lower():
-                        return {
+                        token_info = {
                             'id': coin['id'],
                             'name': coin['name'],
                             'symbol': coin['symbol']
                         }
+                        # 缓存结果
+                        self._set_cache(cache_key, token_info)
+                        return token_info
             
             print(f"未找到地址为 {token_address} 的代币信息")
             return None
@@ -82,8 +142,10 @@ class SolTokenPriceTracker:
         """通过coin ID获取代币价格"""
         try:
             price_url = f"{self.base_url}/simple/price?ids={coin_id}&vs_currencies=usd"
-            response = requests.get(price_url, timeout=10)
-            response.raise_for_status()
+            response = self._make_request_with_retry(price_url)
+            if not response:
+                return None
+            
             data = response.json()
             return data[coin_id]['usd']
         except Exception as e:
@@ -118,43 +180,49 @@ class SolTokenPriceTracker:
     
     def track_token_price(self, token_address: str) -> bool:
         """主要功能：追踪指定代币价格并记录"""
-        print(f"正在处理代币地址: {token_address}")
+        print(f"🔍 正在处理代币地址: {token_address}")
         
         # 1. 获取SOL价格
-        print("获取SOL价格...")
+        print("📊 获取SOL价格...")
         sol_price = self.get_sol_price()
         if not sol_price:
-            print("无法获取SOL价格，退出")
+            print("❌ 无法获取SOL价格")
+            print("💡 建议：请检查网络连接，或稍后重试（可能是API请求频率限制）")
             return False
-        print(f"SOL当前价格: ${sol_price:.6f}")
+        print(f"✅ SOL当前价格: ${sol_price:.6f}")
         
         # 2. 获取代币信息
-        print("获取代币信息...")
+        print("🔍 获取代币信息...")
         token_info = self.get_token_info_by_address(token_address)
         if not token_info:
-            print("无法获取代币信息，退出")
+            print("❌ 无法获取代币信息")
+            print("💡 建议：请确认代币地址是否正确，或该代币是否在CoinGecko上有记录")
             return False
-        print(f"代币信息: {token_info['name']} ({token_info['symbol'].upper()})")
+        print(f"✅ 代币信息: {token_info['name']} ({token_info['symbol'].upper()})")
         
         # 3. 获取代币价格
-        print("获取代币价格...")
+        print("💰 获取代币价格...")
         token_price = self.get_token_price(token_info['id'])
         if not token_price:
-            print("无法获取代币价格，退出")
+            print("❌ 无法获取代币价格")
+            print("💡 建议：请稍后重试，可能是API请求频率限制")
             return False
-        print(f"代币当前价格: ${token_price:.8f}")
+        print(f"✅ 代币当前价格: ${token_price:.8f}")
         
         # 4. 计算兑换比率
         sol_to_token, token_to_sol = self.calculate_exchange_rates(sol_price, token_price)
         
-        print("\n=== 兑换比率 ===")
-        print(f"1 SOL = {sol_to_token:.8f} {token_info['symbol'].upper()}")
+        print("\n" + "="*50)
+        print("📈 兑换比率")
+        print("="*50)
+        print(f"1 SOL = {sol_to_token:,.8f} {token_info['symbol'].upper()}")
         print(f"1 {token_info['symbol'].upper()} = {token_to_sol:.8f} SOL")
+        print("="*50)
         
         # 5. 保存到文件
         self.save_to_file(token_address, token_info, sol_price, token_price, 
                          sol_to_token, token_to_sol)
-        print(f"\n数据已保存到 {self.data_file}")
+        print(f"💾 数据已保存到 {self.data_file}")
         
         return True
     
@@ -203,18 +271,25 @@ def main():
         token_address = tracker.default_token_address
         if not token_address:
             print("❌ 错误：没有提供代币地址，且.env文件中也没有设置DEFAULT_TOKEN_ADDRESS")
-            print("请使用以下方式之一：")
-            print("1. 直接提供代币地址：python sol_token_price_tracker.py <代币地址>")
-            print("2. 在.env文件中设置DEFAULT_TOKEN_ADDRESS=<代币地址>")
+            print("\n💡 解决方案：")
+            print("1. 直接提供代币地址：")
+            print("   python sol_token_price_tracker.py <代币地址>")
+            print("\n2. 创建.env文件设置默认地址：")
+            print("   cp env_example.txt .env")
+            print("   然后编辑.env文件设置DEFAULT_TOKEN_ADDRESS")
+            print("\n3. 查看帮助：")
+            print("   python sol_token_price_tracker.py --help")
             return
         else:
-            print(f"使用.env文件中的默认代币地址: {token_address}")
+            print(f"🎯 使用.env文件中的默认代币地址: {token_address}")
     
     success = tracker.track_token_price(token_address)
     if success:
-        print("\n✅ 价格追踪完成！")
+        print("\n🎉 价格追踪完成！")
+        print("📝 你可以使用 --history 参数查看历史记录")
     else:
         print("\n❌ 价格追踪失败！")
+        print("💡 如果是API频率限制，请等待几分钟后重试")
 
 
 if __name__ == "__main__":
