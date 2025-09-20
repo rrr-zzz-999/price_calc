@@ -1,6 +1,7 @@
 # Solana代币价格追踪器配置文件
-# 复制此文件为 .env 并填入你的默认代币地址
+# 复制此文件为 .env 并填入你的配置
 
+# ========== 代币配置 ==========
 # 默认代币地址（当不提供命令行参数时使用）
 # 以下是一些常见的Solana代币地址示例：
 
@@ -12,5 +13,15 @@ DEFAULT_TOKEN_ADDRESS=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
 
 # RAY (Raydium) - 取消注释并注释上面的行来使用RAY  
 # DEFAULT_TOKEN_ADDRESS=4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R
+
+# ========== API源配置 ==========
+# API源优先级（逗号分隔，按优先级排序）
+# 可选值：jupiter, dexscreener, coingecko, solscan
+# jupiter: 快速，数据准确，适合实时交易数据
+# dexscreener: 覆盖面广，流动性信息丰富
+# coingecko: 稳定，但有请求频率限制
+# solscan: 官方数据，但API限制较多
+
+PREFERRED_APIS=jupiter,dexscreener,coingecko
 
 # 你可以将上面的地址替换为任何你想要追踪的Solana代币地址
