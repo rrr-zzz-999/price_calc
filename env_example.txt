@@ -1,0 +1,16 @@
+# Solana代币价格追踪器配置文件
+# 复制此文件为 .env 并填入你的默认代币地址
+
+# 默认代币地址（当不提供命令行参数时使用）
+# 以下是一些常见的Solana代币地址示例：
+
+# USDC (USD Coin)
+DEFAULT_TOKEN_ADDRESS=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+
+# USDT (Tether USD) - 取消注释并注释上面的行来使用USDT
+# DEFAULT_TOKEN_ADDRESS=Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
+
+# RAY (Raydium) - 取消注释并注释上面的行来使用RAY  
+# DEFAULT_TOKEN_ADDRESS=4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R
+
+# 你可以将上面的地址替换为任何你想要追踪的Solana代币地址
