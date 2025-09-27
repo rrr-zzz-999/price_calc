@@ -1,2 +1,3 @@
 .env
 token_price_history.csv
+token_price_comparison.csv
