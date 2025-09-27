@@ -14,6 +14,22 @@ DEFAULT_TOKEN_ADDRESS=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
 # RAY (Raydium) - 取消注释并注释上面的行来使用RAY  
 # DEFAULT_TOKEN_ADDRESS=4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R
 
+# ========== ETH代币配置 ==========
+# 默认以太坊代币地址（用于价格比值计算）
+# 以下是一些常见的以太坊代币地址示例：
+
+# USDC (USD Coin on Ethereum)
+DEFAULT_ETH_TOKEN_ADDRESS=0xA0b86a33E6411e639c7a59ba0e5C3A0e2eE8cE0A
+
+# USDT (Tether USD on Ethereum) - 取消注释并注释上面的行来使用USDT
+# DEFAULT_ETH_TOKEN_ADDRESS=0xdAC17F958D2ee523a2206206994597C13D831ec7
+
+# UNI (Uniswap Token) - 取消注释并注释上面的行来使用UNI
+# DEFAULT_ETH_TOKEN_ADDRESS=0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984
+
+# WETH (Wrapped Ethereum) - 取消注释并注释上面的行来使用WETH
+# DEFAULT_ETH_TOKEN_ADDRESS=0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
+
 # ========== API源配置 ==========
 # API源优先级（逗号分隔，按优先级排序）
 # 可选值：jupiter, dexscreener, coingecko, solscan
